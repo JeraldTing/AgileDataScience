@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 
-def load_and_process_data(filepath="data/dataset.csv", output_path="data/processed_dataset.csv"):
+def load_and_process_data(filepath="data/sales.csv", output_path="data/processed_dataset.csv"):
     """
     Loads the dataset, removes duplicate rows, and saves the processed dataset.
 
