@@ -2,20 +2,32 @@ from typing import List, Tuple
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-import io  # For handling in-memory buffer for CSV
+import io
+import gettext
 
+# Set up translation
+def get_translations(language="en"):
+    try:
+        t = gettext.translation('base', localedir='locales', languages=[language])
+        t.install()
+    except FileNotFoundError:
+        _ = lambda x: x  # Fallback to English if translations are not available
+    return _
+
+# Initialize translations (you can add more languages like 'fr', 'es' etc.)
+_ = get_translations('en')  # Default language is English
 
 def set_page_config():
     st.set_page_config(
-        page_title="Transportation Sales Dashboard",
+        page_title=_("Transportation Sales Dashboard"),
         page_icon=":bar_chart:",
         layout="wide",
         initial_sidebar_state="expanded",
     )
     st.markdown("<style> footer {visibility: hidden;} </style>", unsafe_allow_html=True)
 
-    st.sidebar.header("📄 Upload CSV File")
-    uploaded_file = st.sidebar.file_uploader("📤 Upload your input CSV file", type=["csv"])
+    st.sidebar.header(_("📄 Upload CSV File"))
+    uploaded_file = st.sidebar.file_uploader(_("📤 Upload your input CSV file"), type=["csv"])
 
 @st.cache_data
 def load_data() -> pd.DataFrame:
@@ -23,10 +35,8 @@ def load_data() -> pd.DataFrame:
     data['ORDERDATE'] = pd.to_datetime(data['ORDERDATE'])
     return data
 
-
 def filter_data(data: pd.DataFrame, column: str, values: List[str]) -> pd.DataFrame:
     return data[data[column].isin(values)] if values else data
-
 
 @st.cache_data
 def calculate_kpis(data: pd.DataFrame) -> List[float]:
@@ -37,39 +47,38 @@ def calculate_kpis(data: pd.DataFrame) -> List[float]:
     unique_customers = data['CUSTOMERNAME'].nunique()
     return [sales_in_m, total_orders, average_sales_per_order, unique_customers]
 
-
 def display_kpi_metrics(kpis: List[float], kpi_names: List[str]):
-    st.header("KPI Metrics")
+    st.header(_("KPI Metrics"))
     for col, (kpi_name, kpi_value) in zip(st.columns(4), zip(kpi_names, kpis)):
         col.metric(label=kpi_name, value=kpi_value)
 
-
 def display_sidebar(data: pd.DataFrame) -> Tuple[List[str], List[str], List[str]]:
-    st.sidebar.header("Filters")
-    start_date = pd.Timestamp(st.sidebar.date_input("Start date", data['ORDERDATE'].min().date()))
-    end_date = pd.Timestamp(st.sidebar.date_input("End date", data['ORDERDATE'].max().date()))
+    st.sidebar.header(_("Filters"))
+    start_date = pd.Timestamp(st.sidebar.date_input(_("Start date"), data['ORDERDATE'].min().date()))
+    end_date = pd.Timestamp(st.sidebar.date_input(_("End date"), data['ORDERDATE'].max().date()))
 
     product_lines = sorted(data['PRODUCTLINE'].unique())
-    selected_product_lines = st.sidebar.multiselect("Product lines", product_lines, product_lines)
+    selected_product_lines = st.sidebar.multiselect(_("Product lines"), product_lines, product_lines)
 
-    selected_countries = st.sidebar.multiselect("Select Countries", data['COUNTRY'].unique())
+    selected_countries = st.sidebar.multiselect(_("Select Countries"), data['COUNTRY'].unique())
 
-    selected_statuses = st.sidebar.multiselect("Select Order Statuses", data['STATUS'].unique())
+    selected_statuses = st.sidebar.multiselect(_("Select Order Statuses"), data['STATUS'].unique())
 
-    st.sidebar.info('Jerald Ting Dashboard Studio')
+    st.sidebar.info(_('Jerald Ting Dashboard Studio'))
 
-    return selected_product_lines, selected_countries, selected_statuses
+    search_button = st.sidebar.button(_('Search'))
 
+    return selected_product_lines, selected_countries, selected_statuses, search_button
 
 def display_charts(data: pd.DataFrame):
-    combine_product_lines = st.checkbox("Combine Product Lines", value=True)
+    combine_product_lines = st.checkbox(_("Combine Product Lines"), value=True)
 
     if combine_product_lines:
         fig = px.area(data, x='ORDERDATE', y='SALES',
-                      title="Sales by Product Line Over Time", width=900, height=500)
+                      title=_("Sales by Product Line Over Time"), width=900, height=500)
     else:
         fig = px.area(data, x='ORDERDATE', y='SALES', color='PRODUCTLINE',
-                      title="Sales by Product Line Over Time", width=900, height=500)
+                      title=_("Sales by Product Line Over Time"), width=900, height=500)
 
     fig.update_layout(margin=dict(l=20, r=20, t=50, b=20))
     fig.update_xaxes(rangemode='tozero', showgrid=False)
@@ -79,63 +88,69 @@ def display_charts(data: pd.DataFrame):
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.subheader("Top 10 Customers")
+        st.subheader(_("Top 10 Customers"))
         top_customers = data.groupby('CUSTOMERNAME')['SALES'].sum().reset_index().sort_values('SALES',
                                                                                               ascending=False).head(10)
         st.write(top_customers)
 
     with col2:
-        st.subheader("Top 10 Products by Sales")
+        st.subheader(_("Top 10 Products by Sales"))
         top_products = data.groupby(['PRODUCTCODE', 'PRODUCTLINE'])['SALES'].sum().reset_index().sort_values('SALES',
                                                                                                              ascending=False).head(10)
         st.write(top_products)
 
     with col3:
-        st.subheader("Total Sales by Product Line")
+        st.subheader(_("Total Sales by Product Line"))
         total_sales_by_product_line = data.groupby('PRODUCTLINE')['SALES'].sum().reset_index()
         st.write(total_sales_by_product_line)
 
-
 def add_download_button(filtered_data: pd.DataFrame):
-    # Convert the filtered data to CSV
     csv_buffer = io.StringIO()
     filtered_data.to_csv(csv_buffer, index=False)
     csv_data = csv_buffer.getvalue()
 
-    # Create a download button
     st.download_button(
-        label="📥 Download Filtered Data",
+        label=_("📥 Download Filtered Data"),
         data=csv_data,
         file_name="filtered_sales_data.csv",
         mime="text/csv",
     )
-    st.write("You can download the filtered data above in CSV format for further analysis.")
+    st.write(_("You can download the filtered data above in CSV format for further analysis."))
 
+def user_feedback():
+    st.sidebar.header(_("Your Feedback"))
+    feedback = st.sidebar.text_area(_("Share your feedback or suggestions"))
+    if st.sidebar.button(_("Submit Feedback")):
+        if feedback:
+            st.sidebar.success(_("Thank you for your feedback!"))
+        else:
+            st.sidebar.warning(_("Please write some feedback before submitting."))
 
 def main():
     set_page_config()
 
     data = load_data()
 
-    st.title("📊 Transportation Sales Dashboard")  # Updated title
+    st.title(_("📊 Transportation Sales Dashboard"))
 
-    selected_product_lines, selected_countries, selected_statuses = display_sidebar(data)
+    selected_product_lines, selected_countries, selected_statuses, search_button = display_sidebar(data)
 
-    filtered_data = data.copy()
-    filtered_data = filter_data(filtered_data, 'PRODUCTLINE', selected_product_lines)
-    filtered_data = filter_data(filtered_data, 'COUNTRY', selected_countries)
-    filtered_data = filter_data(filtered_data, 'STATUS', selected_statuses)
+    if search_button:
+        filtered_data = data.copy()
+        filtered_data = filter_data(filtered_data, 'PRODUCTLINE', selected_product_lines)
+        filtered_data = filter_data(filtered_data, 'COUNTRY', selected_countries)
+        filtered_data = filter_data(filtered_data, 'STATUS', selected_statuses)
 
-    kpis = calculate_kpis(filtered_data)
-    kpi_names = ["Total Sales", "Total Orders", "Average Sales per Order", "Unique Customers"]
-    display_kpi_metrics(kpis, kpi_names)
+        kpis = calculate_kpis(filtered_data)
+        kpi_names = [_("Total Sales"), _("Total Orders"), _("Average Sales per Order"), _("Unique Customers")]
+        display_kpi_metrics(kpis, kpi_names)
 
-    display_charts(filtered_data)
+        display_charts(filtered_data)
 
-    # Add download button for filtered data
-    st.header("Export Data")
-    add_download_button(filtered_data)
+        st.header(_("Export Data"))
+        add_download_button(filtered_data)
 
+    user_feedback()
 
 if __name__ == '__main__':
     main()
